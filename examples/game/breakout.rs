@@ -42,107 +42,102 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     // Add the game's entities to our world
-
-    // cameras
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-    commands.spawn_bundle(UiCameraBundle::default());
-    // paddle
     commands
-        .spawn_bundle(SpriteBundle {
+        // cameras
+        .spawn(OrthographicCameraBundle::new_2d())
+        .spawn(UiCameraBundle::default())
+        // paddle
+        .spawn(SpriteBundle {
             material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
             transform: Transform::from_xyz(0.0, -215.0, 0.0),
             sprite: Sprite::new(Vec2::new(120.0, 30.0)),
             ..Default::default()
         })
-        .insert(Paddle { speed: 500.0 })
-        .insert(Collider::Paddle);
-    // ball
-    commands
-        .spawn_bundle(SpriteBundle {
+        .with(Paddle { speed: 500.0 })
+        .with(Collider::Paddle)
+        // ball
+        .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 0.5).into()),
             transform: Transform::from_xyz(0.0, -50.0, 1.0),
             sprite: Sprite::new(Vec2::new(30.0, 30.0)),
             ..Default::default()
         })
-        .insert(Ball {
+        .with(Ball {
             velocity: 400.0 * Vec3::new(0.5, -0.5, 0.0).normalize(),
-        });
-    // scoreboard
-    commands.spawn_bundle(TextBundle {
-        text: Text {
-            sections: vec![
-                TextSection {
-                    value: "Score: ".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 40.0,
-                        color: Color::rgb(0.5, 0.5, 1.0),
+        })
+        // scoreboard
+        .spawn(TextBundle {
+            text: Text {
+                sections: vec![
+                    TextSection {
+                        value: "Score: ".to_string(),
+                        style: TextStyle {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 40.0,
+                            color: Color::rgb(0.5, 0.5, 1.0),
+                        },
                     },
-                },
-                TextSection {
-                    value: "".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 40.0,
-                        color: Color::rgb(1.0, 0.5, 0.5),
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                            font_size: 40.0,
+                            color: Color::rgb(1.0, 0.5, 0.5),
+                        },
                     },
+                ],
+                ..Default::default()
+            },
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    top: Val::Px(5.0),
+                    left: Val::Px(5.0),
+                    ..Default::default()
                 },
-            ],
-            ..Default::default()
-        },
-        style: Style {
-            position_type: PositionType::Absolute,
-            position: Rect {
-                top: Val::Px(5.0),
-                left: Val::Px(5.0),
                 ..Default::default()
             },
             ..Default::default()
-        },
-        ..Default::default()
-    });
+        });
 
     // Add walls
     let wall_material = materials.add(Color::rgb(0.8, 0.8, 0.8).into());
     let wall_thickness = 10.0;
     let bounds = Vec2::new(900.0, 600.0);
 
-    // left
     commands
-        .spawn_bundle(SpriteBundle {
+        // left
+        .spawn(SpriteBundle {
             material: wall_material.clone(),
             transform: Transform::from_xyz(-bounds.x / 2.0, 0.0, 0.0),
             sprite: Sprite::new(Vec2::new(wall_thickness, bounds.y + wall_thickness)),
             ..Default::default()
         })
-        .insert(Collider::Solid);
-    // right
-    commands
-        .spawn_bundle(SpriteBundle {
+        .with(Collider::Solid)
+        // right
+        .spawn(SpriteBundle {
             material: wall_material.clone(),
             transform: Transform::from_xyz(bounds.x / 2.0, 0.0, 0.0),
             sprite: Sprite::new(Vec2::new(wall_thickness, bounds.y + wall_thickness)),
             ..Default::default()
         })
-        .insert(Collider::Solid);
-    // bottom
-    commands
-        .spawn_bundle(SpriteBundle {
+        .with(Collider::Solid)
+        // bottom
+        .spawn(SpriteBundle {
             material: wall_material.clone(),
             transform: Transform::from_xyz(0.0, -bounds.y / 2.0, 0.0),
             sprite: Sprite::new(Vec2::new(bounds.x + wall_thickness, wall_thickness)),
             ..Default::default()
         })
-        .insert(Collider::Solid);
-    // top
-    commands
-        .spawn_bundle(SpriteBundle {
+        .with(Collider::Solid)
+        // top
+        .spawn(SpriteBundle {
             material: wall_material,
             transform: Transform::from_xyz(0.0, bounds.y / 2.0, 0.0),
             sprite: Sprite::new(Vec2::new(bounds.x + wall_thickness, wall_thickness)),
             ..Default::default()
         })
-        .insert(Collider::Solid);
+        .with(Collider::Solid);
 
     // Add bricks
     let brick_rows = 4;
@@ -161,15 +156,15 @@ fn setup(
                 y_position,
                 0.0,
             ) + bricks_offset;
-            // brick
             commands
-                .spawn_bundle(SpriteBundle {
+                // brick
+                .spawn(SpriteBundle {
                     material: brick_material.clone(),
                     sprite: Sprite::new(brick_size),
                     transform: Transform::from_translation(brick_position),
                     ..Default::default()
                 })
-                .insert(Collider::Scorable);
+                .with(Collider::Scorable);
         }
     }
 }
@@ -233,7 +228,7 @@ fn ball_collision_system(
                 // scorable colliders should be despawned and increment the scoreboard on collision
                 if let Collider::Scorable = *collider {
                     scoreboard.score += 1;
-                    commands.entity(collider_entity).despawn();
+                    commands.despawn(collider_entity);
                 }
 
                 // reflect the ball when it collides

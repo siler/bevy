@@ -13,12 +13,12 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn(OrthographicCameraBundle::new_2d());
     let texture = asset_server.load("branding/icon.png");
 
     // Spawn a root entity with no parent
     let parent = commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             transform: Transform::from_scale(Vec3::splat(0.75)),
             material: materials.add(ColorMaterial {
                 color: Color::WHITE,
@@ -29,7 +29,7 @@ fn setup(
         // With that entity as a parent, run a lambda that spawns its children
         .with_children(|parent| {
             // parent is a ChildBuilder, which has a similar API to Commands
-            parent.spawn_bundle(SpriteBundle {
+            parent.spawn(SpriteBundle {
                 transform: Transform {
                     translation: Vec3::new(250.0, 0.0, 0.0),
                     scale: Vec3::splat(0.75),
@@ -43,14 +43,15 @@ fn setup(
             });
         })
         // Store parent entity for next sections
-        .id();
+        .current_entity()
+        .unwrap();
 
     // Another way to create a hierarchy is to add a Parent component to an entity,
     // which would be added automatically to parents with other methods.
     // Similarly, adding a Parent component will automatically add a Children component to the
     // parent.
     commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             transform: Transform {
                 translation: Vec3::new(-250.0, 0.0, 0.0),
                 scale: Vec3::splat(0.75),
@@ -63,12 +64,12 @@ fn setup(
             ..Default::default()
         })
         // Using the entity from the previous section as the parent:
-        .insert(Parent(parent));
+        .with(Parent(parent));
 
     // Another way is to use the push_children function to add children after the parent
     // entity has already been spawned.
     let child = commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             transform: Transform {
                 translation: Vec3::new(0.0, 250.0, 0.0),
                 scale: Vec3::splat(0.75),
@@ -80,10 +81,11 @@ fn setup(
             }),
             ..Default::default()
         })
-        .id();
+        .current_entity()
+        .unwrap();
 
     // Pushing takes a slice of children to add:
-    commands.entity(parent).push_children(&[child]);
+    commands.push_children(parent, &[child]);
 }
 
 // A simple system to rotate the root entity, and rotate all its children separately
@@ -111,13 +113,13 @@ fn rotate(
         // seconds
         if time.seconds_since_startup() >= 2.0 && children.len() == 3 {
             let child = children.last().copied().unwrap();
-            commands.entity(child).despawn();
+            commands.despawn(child);
         }
 
         if time.seconds_since_startup() >= 4.0 {
             // This will remove the entity from its parent's list of children, as well as despawn
             // any children the entity has.
-            commands.entity(parent).despawn_recursive();
+            commands.despawn_recursive(parent);
         }
     }
 }

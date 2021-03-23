@@ -85,16 +85,17 @@ const RESET_FOCUS: [f32; 3] = [
 fn setup_cameras(mut commands: Commands, mut game: ResMut<Game>) {
     game.camera_should_focus = Vec3::from(RESET_FOCUS);
     game.camera_is_focus = game.camera_should_focus;
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(
-            -(BOARD_SIZE_I as f32 / 2.0),
-            2.0 * BOARD_SIZE_J as f32 / 3.0,
-            BOARD_SIZE_J as f32 / 2.0 - 0.5,
-        )
-        .looking_at(game.camera_is_focus, Vec3::Y),
-        ..Default::default()
-    });
-    commands.spawn_bundle(UiCameraBundle::default());
+    commands
+        .spawn(PerspectiveCameraBundle {
+            transform: Transform::from_xyz(
+                -(BOARD_SIZE_I as f32 / 2.0),
+                2.0 * BOARD_SIZE_J as f32 / 3.0,
+                BOARD_SIZE_J as f32 / 2.0 - 0.5,
+            )
+            .looking_at(game.camera_is_focus, Vec3::Y),
+            ..Default::default()
+        })
+        .spawn(UiCameraBundle::default());
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut game: ResMut<Game>) {
@@ -104,7 +105,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut game: ResMu
     game.player.i = BOARD_SIZE_I / 2;
     game.player.j = BOARD_SIZE_J / 2;
 
-    commands.spawn_bundle(LightBundle {
+    commands.spawn(LightBundle {
         transform: Transform::from_xyz(4.0, 5.0, 4.0),
         ..Default::default()
     });
@@ -117,7 +118,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut game: ResMu
                 .map(|i| {
                     let height = rand::thread_rng().gen_range(-0.1..0.1);
                     commands
-                        .spawn_bundle((
+                        .spawn((
                             Transform::from_xyz(i as f32, height - 0.2, j as f32),
                             GlobalTransform::identity(),
                         ))
@@ -131,31 +132,29 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut game: ResMu
         .collect();
 
     // spawn the game character
-    game.player.entity = Some(
-        commands
-            .spawn_bundle((
-                Transform {
-                    translation: Vec3::new(
-                        game.player.i as f32,
-                        game.board[game.player.j][game.player.i].height,
-                        game.player.j as f32,
-                    ),
-                    rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
-                    ..Default::default()
-                },
-                GlobalTransform::identity(),
-            ))
-            .with_children(|cell| {
-                cell.spawn_scene(asset_server.load("models/AlienCake/alien.glb#Scene0"));
-            })
-            .id(),
-    );
+    game.player.entity = commands
+        .spawn((
+            Transform {
+                translation: Vec3::new(
+                    game.player.i as f32,
+                    game.board[game.player.j][game.player.i].height,
+                    game.player.j as f32,
+                ),
+                rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
+                ..Default::default()
+            },
+            GlobalTransform::identity(),
+        ))
+        .with_children(|cell| {
+            cell.spawn_scene(asset_server.load("models/AlienCake/alien.glb#Scene0"));
+        })
+        .current_entity();
 
     // load the scene for the cake
     game.bonus.handle = asset_server.load("models/AlienCake/cakeBirthday.glb#Scene0");
 
     // scoreboard
-    commands.spawn_bundle(TextBundle {
+    commands.spawn(TextBundle {
         text: Text::with_section(
             "Score:",
             TextStyle {
@@ -181,7 +180,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut game: ResMu
 // remove all entities that are not a camera
 fn teardown(mut commands: Commands, entities: Query<Entity, Without<Camera>>) {
     for entity in entities.iter() {
-        commands.entity(entity).despawn_recursive();
+        commands.despawn_recursive(entity);
     }
 }
 
@@ -241,7 +240,7 @@ fn move_player(
         if game.player.i == game.bonus.i && game.player.j == game.bonus.j {
             game.score += 2;
             game.cake_eaten += 1;
-            commands.entity(entity).despawn_recursive();
+            commands.despawn_recursive(entity);
             game.bonus.entity = None;
         }
     }
@@ -301,7 +300,7 @@ fn spawn_bonus(
     }
     if let Some(entity) = game.bonus.entity {
         game.score -= 3;
-        commands.entity(entity).despawn_recursive();
+        commands.despawn_recursive(entity);
         game.bonus.entity = None;
         if game.score <= -5 {
             state.set_next(GameState::GameOver).unwrap();
@@ -317,24 +316,22 @@ fn spawn_bonus(
             break;
         }
     }
-    game.bonus.entity = Some(
-        commands
-            .spawn_bundle((
-                Transform {
-                    translation: Vec3::new(
-                        game.bonus.i as f32,
-                        game.board[game.player.j][game.player.i].height + 0.2,
-                        game.bonus.j as f32,
-                    ),
-                    ..Default::default()
-                },
-                GlobalTransform::identity(),
-            ))
-            .with_children(|cell| {
-                cell.spawn_scene(game.bonus.handle.clone());
-            })
-            .id(),
-    );
+    game.bonus.entity = commands
+        .spawn((
+            Transform {
+                translation: Vec3::new(
+                    game.bonus.i as f32,
+                    game.board[game.player.j][game.player.i].height + 0.2,
+                    game.bonus.j as f32,
+                ),
+                ..Default::default()
+            },
+            GlobalTransform::identity(),
+        ))
+        .with_children(|cell| {
+            cell.spawn_scene(game.bonus.handle.clone());
+        })
+        .current_entity();
 }
 
 // let the cake turn on itself
@@ -370,7 +367,7 @@ fn display_score(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 margin: Rect::all(Val::Auto),
                 justify_content: JustifyContent::Center,
@@ -381,7 +378,7 @@ fn display_score(
             ..Default::default()
         })
         .with_children(|parent| {
-            parent.spawn_bundle(TextBundle {
+            parent.spawn(TextBundle {
                 text: Text::with_section(
                     format!("Cake eaten: {}", game.cake_eaten),
                     TextStyle {

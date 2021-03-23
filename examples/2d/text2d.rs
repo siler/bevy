@@ -9,23 +9,24 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // 2d camera
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-    commands.spawn_bundle(Text2dBundle {
-        text: Text::with_section(
-            "This text is in the 2D scene.",
-            TextStyle {
-                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                font_size: 60.0,
-                color: Color::WHITE,
-            },
-            TextAlignment {
-                vertical: VerticalAlign::Center,
-                horizontal: HorizontalAlign::Center,
-            },
-        ),
-        ..Default::default()
-    });
+    commands
+        // 2d camera
+        .spawn(OrthographicCameraBundle::new_2d())
+        .spawn(Text2dBundle {
+            text: Text::with_section(
+                "This text is in the 2D scene.",
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 60.0,
+                    color: Color::WHITE,
+                },
+                TextAlignment {
+                    vertical: VerticalAlign::Center,
+                    horizontal: HorizontalAlign::Center,
+                },
+            ),
+            ..Default::default()
+        });
 }
 
 fn animate(time: Res<Time>, mut query: Query<&mut Transform, With<Text>>) {

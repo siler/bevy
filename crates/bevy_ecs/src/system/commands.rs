@@ -26,13 +26,8 @@ impl CommandQueue {
     }
 
     #[inline]
-    pub fn push_boxed(&mut self, command: Box<dyn Command>) {
+    pub fn push(&mut self, command: Box<dyn Command>) {
         self.commands.push(command);
-    }
-
-    #[inline]
-    pub fn push<T: Command>(&mut self, command: T) {
-        self.push_boxed(Box::new(command));
     }
 }
 
@@ -40,6 +35,7 @@ impl CommandQueue {
 pub struct Commands<'a> {
     queue: &'a mut CommandQueue,
     entities: &'a Entities,
+    current_entity: Option<Entity>,
 }
 
 impl<'a> Commands<'a> {
@@ -47,45 +43,18 @@ impl<'a> Commands<'a> {
         Self {
             queue,
             entities: world.entities(),
-        }
-    }
-
-    /// Creates a new empty entity and returns an [EntityCommands] builder for it.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use bevy_ecs::prelude::*;
-    ///
-    /// fn example_system(mut commands: Commands) {
-    ///     // Create a new empty entity and retrieve its id.
-    ///     let empty_entity = commands.spawn().id();
-    ///
-    ///     // Create another empty entity, then add some component to it
-    ///     commands.spawn()
-    ///         // adds a new component bundle to the entity
-    ///         .insert_bundle((1usize, 2u32))
-    ///         // adds a single component to the entity
-    ///         .insert("hello world");
-    /// }
-    /// # example_system.system();
-    /// ```
-    pub fn spawn(&mut self) -> EntityCommands<'a, '_> {
-        let entity = self.entities.reserve_entity();
-        EntityCommands {
-            entity,
-            commands: self,
+            current_entity: None,
         }
     }
 
     /// Creates a new entity with the components contained in `bundle`.
     ///
-    /// This returns an [EntityCommands] builder, which enables inserting more components and bundles
-    /// using a "builder pattern".
-    ///
     /// Note that `bundle` is a [Bundle], which is a collection of components. [Bundle] is
     /// automatically implemented for tuples of components. You can also create your own bundle
-    /// types by deriving [`derive@Bundle`].
+    /// types by deriving [`derive@Bundle`]. If you would like to spawn an entity with a single
+    /// component, consider wrapping the component in a tuple (which [Bundle] is implemented for).
+    ///
+    /// See [`Self::set_current_entity`], [`Self::insert`].
     ///
     /// # Example
     ///
@@ -103,118 +72,113 @@ impl<'a> Commands<'a> {
     ///
     /// fn example_system(mut commands: Commands) {
     ///     // Create a new entity with a component bundle.
-    ///     commands.spawn_bundle(ExampleBundle {
+    ///     commands.spawn(ExampleBundle {
     ///         a: Component1,
     ///         b: Component2,
     ///     });
     ///
-    ///     commands
-    ///         // Create a new entity with two components using a "tuple bundle".
-    ///         .spawn_bundle((Component1, Component2))
-    ///         // spawn_bundle returns a builder, so you can insert more bundles like this:
-    ///         .insert_bundle((1usize, 2u32))
-    ///         // or insert single components like this:
-    ///         .insert("hello world");
+    ///     // Create a new entity with a single component.
+    ///     commands.spawn((Component1,));
+    ///     // Create a new entity with two components.
+    ///     commands.spawn((Component1, Component2));
     /// }
     /// # example_system.system();
     /// ```
-    pub fn spawn_bundle<'b, T: Bundle>(&'b mut self, bundle: T) -> EntityCommands<'a, 'b> {
-        let mut e = self.spawn();
-        e.insert_bundle(bundle);
-        e
-    }
-
-    /// Returns an [EntityCommands] builder for the requested `entity`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use bevy_ecs::prelude::*;
-    ///
-    /// fn example_system(mut commands: Commands) {
-    ///     // Create a new, empty entity
-    ///     let entity = commands.spawn().id();
-    ///
-    ///     commands.entity(entity)
-    ///         // adds a new component bundle to the entity
-    ///         .insert_bundle((1usize, 2u32))
-    ///         // adds a single component to the entity
-    ///         .insert("hello world");
-    /// }
-    /// # example_system.system();
-    /// ```
-    pub fn entity(&mut self, entity: Entity) -> EntityCommands<'a, '_> {
-        EntityCommands {
-            entity,
-            commands: self,
-        }
+    pub fn spawn(&mut self, bundle: impl Bundle) -> &mut Self {
+        let entity = self.entities.reserve_entity();
+        self.set_current_entity(entity);
+        self.insert_bundle(entity, bundle);
+        self
     }
 
     /// Equivalent to iterating `bundles_iter` and calling [`Self::spawn`] on each bundle, but
     /// slightly more performant.
-    pub fn spawn_batch<I>(&mut self, bundles_iter: I)
+    pub fn spawn_batch<I>(&mut self, bundles_iter: I) -> &mut Self
     where
         I: IntoIterator + Send + Sync + 'static,
         I::Item: Bundle,
     {
-        self.queue.push(SpawnBatch { bundles_iter });
+        self.add_command(SpawnBatch { bundles_iter })
+    }
+
+    /// Despawns only the specified entity, not including its children.
+    pub fn despawn(&mut self, entity: Entity) -> &mut Self {
+        self.add_command(Despawn { entity })
+    }
+
+    /// Inserts a bundle of components into `entity`.
+    ///
+    /// See [crate::world::EntityMut::insert_bundle].
+    pub fn insert_bundle(&mut self, entity: Entity, bundle: impl Bundle) -> &mut Self {
+        self.add_command(InsertBundle { entity, bundle })
+    }
+
+    /// Inserts a single component into `entity`.
+    ///
+    /// See [crate::world::EntityMut::insert].
+    pub fn insert(&mut self, entity: Entity, component: impl Component) -> &mut Self {
+        self.add_command(Insert { entity, component })
+    }
+
+    /// See [crate::world::EntityMut::remove].
+    pub fn remove<T>(&mut self, entity: Entity) -> &mut Self
+    where
+        T: Component,
+    {
+        self.add_command(Remove::<T> {
+            entity,
+            phantom: PhantomData,
+        })
     }
 
     /// See [World::insert_resource].
-    pub fn insert_resource<T: Component>(&mut self, resource: T) {
-        self.queue.push(InsertResource { resource })
+    pub fn insert_resource<T: Component>(&mut self, resource: T) -> &mut Self {
+        self.add_command(InsertResource { resource })
     }
 
-    pub fn remove_resource<T: Component>(&mut self) {
-        self.queue.push(RemoveResource::<T> {
+    /// See [crate::world::EntityMut::remove_bundle].
+    pub fn remove_bundle<T>(&mut self, entity: Entity) -> &mut Self
+    where
+        T: Bundle,
+    {
+        self.add_command(RemoveBundle::<T> {
+            entity,
             phantom: PhantomData,
-        });
+        })
     }
 
-    /// Adds a command directly to the command list. Prefer this to [`Self::add_command_boxed`] if
-    /// the type of `command` is statically known.
-    pub fn add<C: Command>(&mut self, command: C) {
-        self.queue.push(command);
-    }
-}
-
-pub struct EntityCommands<'a, 'b> {
-    entity: Entity,
-    commands: &'b mut Commands<'a>,
-}
-
-impl<'a, 'b> EntityCommands<'a, 'b> {
-    /// Retrieves the current entity's unique [Entity] id.
-    #[inline]
-    pub fn id(&self) -> Entity {
-        self.entity
+    pub fn remove_resource<T: Component>(&mut self) -> &mut Self {
+        self.add_command(RemoveResource::<T> {
+            phantom: PhantomData,
+        })
     }
 
     /// Adds a bundle of components to the current entity.
     ///
     /// See [`Self::with`], [`Self::current_entity`].
-    pub fn insert_bundle(&mut self, bundle: impl Bundle) -> &mut Self {
-        self.commands.add(InsertBundle {
-            entity: self.entity,
+    pub fn with_bundle(&mut self, bundle: impl Bundle) -> &mut Self {
+        let current_entity =  self.current_entity.expect("Cannot add bundle because the 'current entity' is not set. You should spawn an entity first.");
+        self.queue.push(Box::new(InsertBundle {
+            entity: current_entity,
             bundle,
-        });
+        }));
         self
     }
 
     /// Adds a single component to the current entity.
     ///
-    /// See [`Self::insert_bundle`], [`Self::id`].
+    /// See [`Self::with_bundle`], [`Self::current_entity`].
     ///
     /// # Warning
     ///
     /// It's possible to call this with a bundle, but this is likely not intended and
-    /// [`Self::insert_bundle`] should be used instead. If `with` is called with a bundle, the bundle
+    /// [`Self::with_bundle`] should be used instead. If `with` is called with a bundle, the bundle
     /// itself will be added as a component instead of the bundles' inner components each being
     /// added.
     ///
     /// # Example
     ///
-    /// [`Self::insert`] can be chained with [`Self::spawn`].
+    /// `with` can be chained with [`Self::spawn`].
     ///
     /// ```
     /// use bevy_ecs::prelude::*;
@@ -223,58 +187,65 @@ impl<'a, 'b> EntityCommands<'a, 'b> {
     /// struct Component2;
     ///
     /// fn example_system(mut commands: Commands) {
-    ///     // Create a new entity with `Component1` and `Component2`
-    ///     commands.spawn()
-    ///         .insert(Component1)
-    ///         .insert(Component2);
+    ///     // Create a new entity with a `Component1` and `Component2`.
+    ///     commands.spawn((Component1,)).with(Component2);
     ///
-    ///     // Psst! These are also equivalent to the expression above!
-    ///     commands.spawn().insert_bundle((Component1, Component2));
-    ///     commands.spawn_bundle((Component1, Component2));
+    ///     // Psst! These are also equivalent to the line above!
+    ///     commands.spawn((Component1, Component2));
+    ///     commands.spawn(()).with(Component1).with(Component2);
+    ///     #[derive(Bundle)]
+    ///     struct ExampleBundle {
+    ///         a: Component1,
+    ///         b: Component2,
+    ///     }
+    ///     commands.spawn(()).with_bundle(ExampleBundle {
+    ///         a: Component1,
+    ///         b: Component2,
+    ///     });
     /// }
     /// # example_system.system();
     /// ```
-    pub fn insert(&mut self, component: impl Component) -> &mut Self {
-        self.commands.add(Insert {
-            entity: self.entity,
+    pub fn with(&mut self, component: impl Component) -> &mut Self {
+        let current_entity =  self.current_entity.expect("Cannot add component because the 'current entity' is not set. You should spawn an entity first.");
+        self.queue.push(Box::new(Insert {
+            entity: current_entity,
             component,
-        });
+        }));
         self
     }
 
-    /// See [crate::world::EntityMut::remove_bundle].
-    pub fn remove_bundle<T>(&mut self) -> &mut Self
-    where
-        T: Bundle,
-    {
-        self.commands.add(RemoveBundle::<T> {
-            entity: self.entity,
-            phantom: PhantomData,
-        });
+    /// Adds a command directly to the command list. Prefer this to [`Self::add_command_boxed`] if
+    /// the type of `command` is statically known.
+    pub fn add_command<C: Command>(&mut self, command: C) -> &mut Self {
+        self.queue.push(Box::new(command));
         self
     }
 
-    /// See [crate::world::EntityMut::remove].
-    pub fn remove<T>(&mut self) -> &mut Self
-    where
-        T: Component,
-    {
-        self.commands.add(Remove::<T> {
-            entity: self.entity,
-            phantom: PhantomData,
-        });
+    /// See [`Self::add_command`].
+    pub fn add_command_boxed(&mut self, command: Box<dyn Command>) -> &mut Self {
+        self.queue.push(command);
         self
     }
 
-    /// Despawns only the specified entity, not including its children.
-    pub fn despawn(&mut self) {
-        self.commands.add(Despawn {
-            entity: self.entity,
-        })
+    /// Returns the current entity, set by [`Self::spawn`] or with [`Self::set_current_entity`].
+    pub fn current_entity(&self) -> Option<Entity> {
+        self.current_entity
     }
 
-    pub fn commands(&mut self) -> &mut Commands<'a> {
-        self.commands
+    pub fn set_current_entity(&mut self, entity: Entity) {
+        self.current_entity = Some(entity);
+    }
+
+    pub fn clear_current_entity(&mut self) {
+        self.current_entity = None;
+    }
+
+    pub fn for_current_entity(&mut self, f: impl FnOnce(Entity)) -> &mut Self {
+        let current_entity = self
+            .current_entity
+            .expect("The 'current entity' is not set. You should spawn an entity first.");
+        f(current_entity);
+        self
     }
 }
 
@@ -421,8 +392,9 @@ mod tests {
         let mut world = World::default();
         let mut command_queue = CommandQueue::default();
         let entity = Commands::new(&mut command_queue, &world)
-            .spawn_bundle((1u32, 2u64))
-            .id();
+            .spawn((1u32, 2u64))
+            .current_entity()
+            .unwrap();
         command_queue.apply(&mut world);
         assert!(world.entities().len() == 1);
         let results = world
@@ -432,11 +404,9 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(results, vec![(1u32, 2u64)]);
         // test entity despawn
-        {
-            let mut commands = Commands::new(&mut command_queue, &world);
-            commands.entity(entity).despawn();
-            commands.entity(entity).despawn(); // double despawn shouldn't panic
-        }
+        Commands::new(&mut command_queue, &world)
+            .despawn(entity)
+            .despawn(entity); // double despawn shouldn't panic
         command_queue.apply(&mut world);
         let results2 = world
             .query::<(&u32, &u64)>()
@@ -451,9 +421,9 @@ mod tests {
         let mut world = World::default();
         let mut command_queue = CommandQueue::default();
         let entity = Commands::new(&mut command_queue, &world)
-            .spawn()
-            .insert_bundle((1u32, 2u64))
-            .id();
+            .spawn((1u32, 2u64))
+            .current_entity()
+            .unwrap();
         command_queue.apply(&mut world);
         let results_before = world
             .query::<(&u32, &u64)>()
@@ -464,9 +434,8 @@ mod tests {
 
         // test component removal
         Commands::new(&mut command_queue, &world)
-            .entity(entity)
-            .remove::<u32>()
-            .remove_bundle::<(u32, u64)>();
+            .remove::<u32>(entity)
+            .remove_bundle::<(u32, u64)>(entity);
         command_queue.apply(&mut world);
         let results_after = world
             .query::<(&u32, &u64)>()

@@ -83,9 +83,10 @@ fn setup(
         color: Color::rgb(0.0, 0.8, 0.0),
     });
 
-    // cube
+    // Setup our world
     commands
-        .spawn_bundle(MeshBundle {
+        // cube
+        .spawn(MeshBundle {
             mesh: meshes.add(Mesh::from(shape::Cube { size: 2.0 })),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 pipeline_handle,
@@ -93,10 +94,10 @@ fn setup(
             transform: Transform::from_xyz(0.0, 0.0, 0.0),
             ..Default::default()
         })
-        .insert(material);
-    // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(3.0, 5.0, -8.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..Default::default()
-    });
+        .with(material)
+        // camera
+        .spawn(PerspectiveCameraBundle {
+            transform: Transform::from_xyz(3.0, 5.0, -8.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..Default::default()
+        });
 }

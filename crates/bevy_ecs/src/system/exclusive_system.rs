@@ -131,7 +131,7 @@ mod tests {
         ) {
             for entity in query.iter() {
                 *counter += 1;
-                commands.entity(entity).remove::<f32>();
+                commands.remove::<f32>(entity);
             }
         }
 

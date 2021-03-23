@@ -21,8 +21,8 @@ struct TextChanges;
 
 fn infotext_system(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/FiraSans-Bold.ttf");
-    commands.spawn_bundle(UiCameraBundle::default());
-    commands.spawn_bundle(TextBundle {
+    commands.spawn(UiCameraBundle::default());
+    commands.spawn(TextBundle {
         style: Style {
             align_self: AlignSelf::FlexEnd,
             position_type: PositionType::Absolute,
@@ -44,7 +44,7 @@ fn infotext_system(mut commands: Commands, asset_server: Res<AssetServer>) {
         ),
         ..Default::default()
     });
-    commands.spawn_bundle(TextBundle {
+    commands.spawn(TextBundle {
         style: Style {
             align_self: AlignSelf::FlexEnd,
             position_type: PositionType::Absolute,
@@ -74,7 +74,7 @@ fn infotext_system(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..Default::default()
     });
     commands
-        .spawn_bundle(TextBundle {
+        .spawn(TextBundle {
             style: Style {
                 align_self: AlignSelf::FlexEnd,
                 position_type: PositionType::Absolute,
@@ -140,8 +140,8 @@ fn infotext_system(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
             ..Default::default()
         })
-        .insert(TextChanges);
-    commands.spawn_bundle(TextBundle {
+        .with(TextChanges);
+    commands.spawn(TextBundle {
         style: Style {
             align_self: AlignSelf::FlexEnd,
             position_type: PositionType::Absolute,

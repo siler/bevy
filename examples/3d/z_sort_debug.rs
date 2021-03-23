@@ -48,9 +48,9 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let cube_handle = meshes.add(Mesh::from(shape::Cube { size: 2.0 }));
-    // parent cube
     commands
-        .spawn_bundle(PbrBundle {
+        // parent cube
+        .spawn(PbrBundle {
             mesh: cube_handle.clone(),
             material: materials.add(StandardMaterial {
                 unlit: true,
@@ -59,31 +59,32 @@ fn setup(
             transform: Transform::from_xyz(0.0, 0.0, 1.0),
             ..Default::default()
         })
-        .insert(Rotator)
+        .with(Rotator)
         .with_children(|parent| {
             // child cubes
-            parent.spawn_bundle(PbrBundle {
-                mesh: cube_handle.clone(),
-                material: materials.add(StandardMaterial {
-                    unlit: true,
+            parent
+                .spawn(PbrBundle {
+                    mesh: cube_handle.clone(),
+                    material: materials.add(StandardMaterial {
+                        unlit: true,
+                        ..Default::default()
+                    }),
+                    transform: Transform::from_xyz(0.0, 3.0, 0.0),
                     ..Default::default()
-                }),
-                transform: Transform::from_xyz(0.0, 3.0, 0.0),
-                ..Default::default()
-            });
-            parent.spawn_bundle(PbrBundle {
-                mesh: cube_handle,
-                material: materials.add(StandardMaterial {
-                    unlit: true,
+                })
+                .spawn(PbrBundle {
+                    mesh: cube_handle,
+                    material: materials.add(StandardMaterial {
+                        unlit: true,
+                        ..Default::default()
+                    }),
+                    transform: Transform::from_xyz(0.0, -3.0, 0.0),
                     ..Default::default()
-                }),
-                transform: Transform::from_xyz(0.0, -3.0, 0.0),
-                ..Default::default()
-            });
+                });
+        })
+        // camera
+        .spawn(PerspectiveCameraBundle {
+            transform: Transform::from_xyz(5.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..Default::default()
         });
-    // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(5.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..Default::default()
-    });
 }

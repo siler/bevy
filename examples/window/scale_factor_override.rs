@@ -20,11 +20,11 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    // ui camera
-    commands.spawn_bundle(UiCameraBundle::default());
-    // root node
     commands
-        .spawn_bundle(NodeBundle {
+        // ui camera
+        .spawn(UiCameraBundle::default())
+        // root node
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::SpaceBetween,
@@ -34,9 +34,9 @@ fn setup(
             ..Default::default()
         })
         .with_children(|parent| {
-            // left vertical fill (border)
             parent
-                .spawn_bundle(NodeBundle {
+                // left vertical fill (border)
+                .spawn(NodeBundle {
                     style: Style {
                         size: Size::new(Val::Px(200.0), Val::Percent(100.0)),
                         border: Rect::all(Val::Px(2.0)),
@@ -46,7 +46,7 @@ fn setup(
                     ..Default::default()
                 })
                 .with_children(|parent| {
-                    parent.spawn_bundle(TextBundle {
+                    parent.spawn(TextBundle {
                         style: Style {
                             align_self: AlignSelf::FlexEnd,
                             ..Default::default()
