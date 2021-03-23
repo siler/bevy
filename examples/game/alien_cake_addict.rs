@@ -307,8 +307,15 @@ fn spawn_bonus(
             return;
         }
     }
-    game.bonus.i = rand::thread_rng().gen_range(0..BOARD_SIZE_I);
-    game.bonus.j = rand::thread_rng().gen_range(0..BOARD_SIZE_J);
+
+    // ensure bonus doesn't spawn on the player
+    loop {
+        game.bonus.i = rand::thread_rng().gen_range(0..BOARD_SIZE_I);
+        game.bonus.j = rand::thread_rng().gen_range(0..BOARD_SIZE_J);
+        if game.bonus.i != game.player.i || game.bonus.j != game.player.j {
+            break;
+        }
+    }
     game.bonus.entity = commands
         .spawn((
             Transform {
@@ -330,11 +337,12 @@ fn spawn_bonus(
 // let the cake turn on itself
 fn rotate_bonus(game: Res<Game>, time: Res<Time>, mut transforms: Query<&mut Transform>) {
     if let Some(entity) = game.bonus.entity {
-        let mut cake_transform = transforms.get_mut(entity).unwrap();
-        cake_transform.rotate(Quat::from_rotation_y(time.delta_seconds()));
-        cake_transform.scale = Vec3::splat(
-            1.0 + (game.score as f32 / 10.0 * time.seconds_since_startup().sin() as f32).abs(),
-        );
+        if let Ok(mut cake_transform) = transforms.get_mut(entity) {
+            cake_transform.rotate(Quat::from_rotation_y(time.delta_seconds()));
+            cake_transform.scale = Vec3::splat(
+                1.0 + (game.score as f32 / 10.0 * time.seconds_since_startup().sin() as f32).abs(),
+            );
+        }
     }
 }
 
