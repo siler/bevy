@@ -18,7 +18,7 @@ pub fn parent_update_system(
     for (entity, previous_parent) in removed_parent_query.iter() {
         if let Ok(mut previous_parent_children) = children_query.get_mut(previous_parent.0) {
             previous_parent_children.0.retain(|e| *e != entity);
-            commands.remove::<PreviousParent>(entity);
+            commands.entity(entity).remove::<PreviousParent>();
         }
     }
 
@@ -38,7 +38,7 @@ pub fn parent_update_system(
             // Set `PreviousParent = Parent`.
             *previous_parent = PreviousParent(parent.0);
         } else {
-            commands.insert(entity, PreviousParent(parent.0));
+            commands.entity(entity).insert(PreviousParent(parent.0));
         };
     }
 }
@@ -67,19 +67,25 @@ mod test {
         // Add parent entities
         let mut command_queue = CommandQueue::default();
         let mut commands = Commands::new(&mut command_queue, &world);
-        let mut parent = None;
         let mut children = Vec::new();
-        commands
-            .spawn((Transform::from_xyz(1.0, 0.0, 0.0),))
-            .for_current_entity(|entity| parent = Some(entity))
-            .with_children(|parent| {
+        let parent = commands
+            .spawn()
+            .insert(Transform::from_xyz(1.0, 0.0, 0.0))
+            .id();
+        commands.entity(parent).with_children(|parent| {
+            children.push(
                 parent
-                    .spawn((Transform::from_xyz(0.0, 2.0, 0.0),))
-                    .for_current_entity(|entity| children.push(entity))
-                    .spawn((Transform::from_xyz(0.0, 0.0, 3.0),))
-                    .for_current_entity(|entity| children.push(entity));
-            });
-        let parent = parent.unwrap();
+                    .spawn()
+                    .insert(Transform::from_xyz(0.0, 2.0, 0.0))
+                    .id(),
+            );
+            children.push(
+                parent
+                    .spawn()
+                    .insert(Transform::from_xyz(0.0, 3.0, 0.0))
+                    .id(),
+            );
+        });
         command_queue.apply(&mut world);
         schedule.run(&mut world);
 
