@@ -520,6 +520,22 @@ impl World {
     /// Resources are "unique" data of a given type.
     #[inline]
     pub fn remove_resource<T: Component>(&mut self) -> Option<T> {
+        // SAFE: T is Send + Sync
+        unsafe { self.remove_resource_unchecked() }
+    }
+
+    #[inline]
+    pub fn remove_non_send<T: 'static>(&mut self) -> Option<T> {
+        self.validate_non_send_access::<T>();
+        // SAFE: we are on main thread
+        unsafe { self.remove_resource_unchecked() }
+    }
+
+    #[inline]
+    /// # Safety
+    /// make sure you're on main thread if T isn't Send + Sync
+    #[allow(unused_unsafe)]
+    pub unsafe fn remove_resource_unchecked<T: 'static>(&mut self) -> Option<T> {
         let component_id = self.components.get_resource_id(TypeId::of::<T>())?;
         let resource_archetype = self.archetypes.resource_mut();
         let unique_components = resource_archetype.unique_components_mut();
@@ -552,6 +568,20 @@ impl World {
     pub fn get_resource<T: Component>(&self) -> Option<&T> {
         let component_id = self.components.get_resource_id(TypeId::of::<T>())?;
         unsafe { self.get_resource_with_id(component_id) }
+    }
+
+    pub fn is_resource_added<T: Component>(&self) -> bool {
+        let component_id = self.components.get_resource_id(TypeId::of::<T>()).unwrap();
+        let column = self.get_populated_resource_column(component_id).unwrap();
+        let ticks = unsafe { &*column.get_ticks_mut_ptr() };
+        ticks.is_added(self.last_change_tick(), self.read_change_tick())
+    }
+
+    pub fn is_resource_changed<T: Component>(&self) -> bool {
+        let component_id = self.components.get_resource_id(TypeId::of::<T>()).unwrap();
+        let column = self.get_populated_resource_column(component_id).unwrap();
+        let ticks = unsafe { &*column.get_ticks_mut_ptr() };
+        ticks.is_changed(self.last_change_tick(), self.read_change_tick())
     }
 
     /// Gets a mutable reference to the resource of the given type, if it exists. Otherwise returns
